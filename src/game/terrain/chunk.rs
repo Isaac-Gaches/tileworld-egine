@@ -103,7 +103,7 @@ impl Chunk{
     pub fn draw(&self,frame: &mut Frame,materials: &Vec<Handle<Material>>){
         for (mesh,material) in self.meshes.iter().zip(materials.iter()){
             if let Some(mesh_handle) = mesh{
-                frame.draw_mesh(
+                frame.draw(
                     material.clone(),
                     mesh_handle.clone(),
                 );

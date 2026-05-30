@@ -9,3 +9,5 @@ mod sprite_batch;
 mod sky;
 
 pub use mesh::MeshVertex;
+pub use lighting::{Light,LightSource,LightingEngine};
+pub use sprite_batch::{Sprite,Instance};

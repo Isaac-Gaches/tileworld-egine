@@ -1,3 +1,4 @@
+use hecs::World;
 use crate::game::physics::transform::Transform;
 use crate::game::terrain::chunk_manager::ChunkManager;
 
@@ -15,20 +16,22 @@ pub struct Collider{
     pub y_vel:f32,
     pub on_ground:bool,
     auto_jump:bool,
+    bounce: f32,
 }
 
 impl Collider{
 
-    pub fn new(width: f32, height: f32, offset:[f32;2], auto_jump: bool) -> Self{
+    pub fn new(width: f32, height: f32, offset:[f32;2],x_vel: f32,y_vel: f32, auto_jump: bool,bounce: f32) -> Self{
         Self{
             left: -(width/2.) - offset[0],
             right: (width/2.) - offset[0],
             top: (height/2.) - offset[1],
             bottom: -(height/2.) - offset[1],
-            x_vel: 0.0,
-            y_vel: 0.0,
+            x_vel,
+            y_vel,
             on_ground: false,
             auto_jump,
+            bounce,
         }
     }
     pub fn handle_collider(&mut self,transform: &mut Transform,terrain: &ChunkManager,dt: f32){
@@ -58,7 +61,7 @@ impl Collider{
                         }
                         else{
                             transform.translation = origin;
-                            self.x_vel = 0.;
+                            self.x_vel = -self.x_vel * self.bounce;
                         }
                         break 'outer;
                     }
@@ -79,7 +82,7 @@ impl Collider{
                     if terrain.get_tile(x,y,1).unwrap().id != 0{
 
                         transform.translation = origin;
-                        self.y_vel = 0.;
+                        self.y_vel = -self.y_vel * self.bounce;
                         if y == bottom{ self.on_ground = true; }
 
                         break 'outer;
@@ -88,6 +91,10 @@ impl Collider{
             }
         }
     }
-
 }
 
+pub fn update_colliders(world: &mut World,terrain: &ChunkManager,dt:f32){
+    for (_, (transform, collider)) in world.query::<(&mut Transform, &mut Collider)>().iter() {
+        collider.handle_collider(transform,terrain,dt);
+    }
+}

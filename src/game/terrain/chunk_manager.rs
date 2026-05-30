@@ -93,8 +93,12 @@ impl ChunkManager{
             if x_dist >= HORIZONTAL_CHUNK_LOAD_DISTANCE as f32 * CHUNK_SIZE as f32
                 || y_dist >= VERTICAL_CHUNK_LOAD_DISTANCE as f32 * CHUNK_SIZE as f32
             {
-                if chunk.has_mesh() {
-                    chunk.destroy_mesh();
+                if x_dist >= (HORIZONTAL_CHUNK_LOAD_DISTANCE+1) as f32 * CHUNK_SIZE as f32
+                    || y_dist >= (HORIZONTAL_CHUNK_LOAD_DISTANCE+1) as f32 * CHUNK_SIZE as f32
+                {
+                    if chunk.has_mesh() {
+                        chunk.destroy_mesh();
+                    }
                 }
             }
             else if chunk.dirty() {
@@ -353,7 +357,6 @@ impl ChunkManager{
     }
 
     pub fn extract_tiles(&self, player_pos: [f32; 2]) -> Vec<u8> {
-
         let chunk_size = CHUNK_SIZE as i32;
 
         let chunk_radius_x = HORIZONTAL_CHUNK_LOAD_DISTANCE;
@@ -367,19 +370,11 @@ impl ChunkManager{
 
         let mut tiles = vec![1u8; (width_tiles * height_tiles) as usize];
 
-        // ====================================
-        // Player chunk
-        // ====================================
-
         let player_chunk_x =
             player_pos[0].div_euclid(chunk_size as f32) as i32;
 
         let player_chunk_y =
             player_pos[1].div_euclid(chunk_size as f32) as i32;
-
-        // ====================================
-        // Iterate chunks directly
-        // ====================================
 
         for cy in -chunk_radius_y..=chunk_radius_y {
             for cx in -chunk_radius_x..=chunk_radius_x {
@@ -394,13 +389,8 @@ impl ChunkManager{
                     None => continue,
                 };
 
-                // Tile-space offset in output buffer
                 let base_x = (cx + chunk_radius_x) * chunk_size;
                 let base_y = (cy + chunk_radius_y) * chunk_size;
-
-                // ====================================
-                // Process chunk tiles directly
-                // ====================================
 
                 for y in 0..chunk_size as usize {
                     let row_start =
@@ -419,12 +409,7 @@ impl ChunkManager{
                                 2
                             }
                         } else {
-                            match fg {
-                                4 => 4,
-                                6 => 6,
-                                9 => 9,
-                                _ => 1,
-                            }
+                           1
                         };
 
                         tiles[row_start + x] = value;
@@ -489,9 +474,19 @@ impl ChunkManager{
         }
     }
 
+    pub fn explode(&mut self, radius: i32,x: i32,y:i32){
+        for i in -radius..radius{
+            for j in -radius..radius{
+                if i*i + j*j <= radius*radius{
+                    self.set_tile(x+i,y+j,0,1);
+                }
+            }
+        }
+    }
+
     pub fn handle_input(&mut self, input: &InputManager){
-        let x = (input.mouse_world_pos[0]+0.5-16.).floor() as i32;
-        let y = (input.mouse_world_pos[1]+0.5-16.).floor() as i32;
+        let x = input.mouse_world_pos[0].floor() as i32;
+        let y = input.mouse_world_pos[1].floor() as i32;
 
         if input.right_mouse{
             self.set_tile(x,y,0,1);

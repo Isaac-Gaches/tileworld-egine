@@ -30,6 +30,8 @@ impl Camera{
         self.data.position = [self.data.position[0] + (diff[0]*FOLLOW_SPEED) * dt,self.data.position[1] + (diff[1]*FOLLOW_SPEED)* dt];
         self.data.ratio = egpu.window_aspect();
 
+       // self.data.position = player_pos
+
         const ZOOM: f32 = 0.01;
 
         if input.plus{
@@ -39,14 +41,16 @@ impl Camera{
             self.data.zoom -= ZOOM * dt;
         }
 
-        self.data.zoom = self.data.zoom.clamp(0.016,0.1);
+        self.data.zoom = self.data.zoom.clamp(0.018,0.1);
 
         egpu.write_buffer(self.buffer,self.data);
     }
 
     pub fn screen_to_world(&self,pos:[f32;2])->[f32;2]{
-        [(pos[0]/(self.data.zoom))+self.data.position[0]+CHUNK_SIZE as f32/2.,
-            (pos[1]/(self.data.ratio*self.data.zoom))+self.data.position[1]+CHUNK_SIZE as f32/2.]
+        [
+            ((pos[0]/(self.data.zoom))+self.data.position[0]+CHUNK_SIZE as f32/2.)+0.5-16.,
+          (  (pos[1]/(self.data.ratio*self.data.zoom))+self.data.position[1]+CHUNK_SIZE as f32/2.)+0.5-16.
+        ]
     }
 }
 

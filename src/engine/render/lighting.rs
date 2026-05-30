@@ -1,4 +1,5 @@
-use easy_gpu::assets::{Buffer, BufferUsages, compute_texture_float, compute_texture_uint, ComputeBindGroup, ComputeBindGroupBuilder, ComputePipeline, ComputePipelineBuilder, RenderPipeline, Sampler, SamplerBuilder, storage_texture, Texture, TextureBuilder, uniform, compute_uniform};
+use ahash::AHashMap;
+use easy_gpu::assets::{Buffer, BufferUsages, compute_texture_float, compute_texture_uint, ComputeBindGroup, ComputeBindGroupBuilder, ComputePipeline, ComputePipelineBuilder, RenderPipeline, Sampler, SamplerBuilder, storage_texture, Texture, TextureBuilder, compute_uniform, compute_storage};
 use easy_gpu::assets_manager::Handle;
 use easy_gpu::frame::Frame;
 use easy_gpu::wgpu::{Extent3d, FilterMode, TextureFormat, TextureUsages};
@@ -16,7 +17,8 @@ pub struct LightingEngine{
 
     smooth_pipeline: Handle<ComputePipeline>,
     diffuse_pipeline: Handle<ComputePipeline>,
-    set_lit_tiles_pipeline: Handle<ComputePipeline>,
+    set_sky_light_pipeline: Handle<ComputePipeline>,
+    set_light_sources_pipeline: Handle<ComputePipeline>,
     occlusion_pipeline: Handle<ComputePipeline>,
     upscale_pipeline: Handle<ComputePipeline>,
 
@@ -24,14 +26,21 @@ pub struct LightingEngine{
     smooth_bg_b_to_a: Handle<ComputeBindGroup>,
     diffuse_bg_a_to_b: Handle<ComputeBindGroup>,
     diffuse_bg_b_to_a: Handle<ComputeBindGroup>,
+    set_sky_light_bg: Handle<ComputeBindGroup>,
+    set_light_sources_bg: Handle<ComputeBindGroup>,
     occlusion_bg: Handle<ComputeBindGroup>,
     upscale_bg: Handle<ComputeBindGroup>,
 
     pub light_sampler: Handle<Sampler>,
-
     pub light_uniform: Handle<Buffer>,
     light_meta: LightMeta,
+
     pub sky_light: Handle<Buffer>,
+
+    dynamic_lights_meta: Handle<Buffer>,
+    lights_buffer: Handle<Buffer>,
+    pub lights: Vec<LightSource>,
+    num_lights: u32
 }
 
 impl LightingEngine{
@@ -74,44 +83,80 @@ impl LightingEngine{
             .format(TextureFormat::R8Uint)
             .build(egpu);
 
-        let diffuse_shader = egpu.load_shader(include_str!("shaders/diffuse_light.wgsl"));
-        let upscale_shader = egpu.load_shader(include_str!("shaders/upscale_lightmap.wgsl"));
-        let smooth_shader = egpu.load_shader(include_str!("shaders/smooth_light.wgsl"));
-        let occlusion_shader = egpu.load_shader(include_str!("shaders/ambient_occlusion.wgsl"));
+        let diffuse_shader = egpu.load_shader(include_str!("shaders/lighting/diffuse_light.wgsl"));
+        let upscale_shader = egpu.load_shader(include_str!("shaders/lighting/upscale_lightmap.wgsl"));
+        let smooth_shader = egpu.load_shader(include_str!("shaders/lighting/smooth_light.wgsl"));
+        let occlusion_shader = egpu.load_shader(include_str!("shaders/lighting/ambient_occlusion.wgsl"));
+        let set_sky_shader = egpu.load_shader(include_str!("shaders/lighting/sky_light.wgsl"));
+        let set_sources_shader = egpu.load_shader(include_str!("shaders/lighting/light_sources.wgsl"));
 
-        let diffuse_builder = ComputePipelineBuilder::new(diffuse_shader)
+        let diffuse_pipeline = ComputePipelineBuilder::new(diffuse_shader)
             .bind_group_layout(&[
                 compute_texture_float(0),
                 storage_texture(1,Rgba16Float),
                 compute_texture_uint(2),
-                compute_uniform(3)
             ])
-            .entry_point("diffuse_light");
-
-        let sky_light = egpu.create_buffer(
-            BufferUsages::COPY_DST | BufferUsages::UNIFORM,
-            32
-        );
-
-        let diffuse_pipeline = diffuse_builder
-            .build(egpu);
-
-        let set_lit_tiles_pipeline = diffuse_builder
-            .entry_point("set_lit_tiles")
+            .entry_point("diffuse_light")
             .build(egpu);
 
         let diffuse_bg_a_to_b = ComputeBindGroupBuilder::new(diffuse_pipeline.clone())
             .texture(0,diffuse_texture_a)
             .texture(1,diffuse_texture_b)
             .texture(2,tile_storage_texture)
-            .storage(3,sky_light)
             .build(egpu);
 
         let diffuse_bg_b_to_a = ComputeBindGroupBuilder::new(diffuse_pipeline)
             .texture(0,diffuse_texture_b)
             .texture(1,diffuse_texture_a)
             .texture(2,tile_storage_texture)
-            .storage(3,sky_light)
+            .build(egpu);
+
+        let sky_light = egpu.create_buffer(
+            BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            32
+        );
+
+        let set_sky_light_pipeline = ComputePipelineBuilder::new(set_sky_shader)
+            .bind_group_layout(&[
+                compute_texture_float(0),
+                storage_texture(1,Rgba16Float),
+                compute_texture_uint(2),
+                compute_uniform(3)
+            ])
+            .entry_point("set_sky_light")
+            .build(egpu);
+
+        let set_sky_light_bg = ComputeBindGroupBuilder::new(set_sky_light_pipeline)
+            .texture(0,diffuse_texture_b)
+            .texture(1,diffuse_texture_a)
+            .texture(2,tile_storage_texture)
+            .buffer(3,sky_light)
+            .build(egpu);
+
+        let set_light_sources_pipeline = ComputePipelineBuilder::new(set_sources_shader)
+            .bind_group_layout(&[
+                storage_texture(0,Rgba16Float),
+                compute_storage(1,true),
+                compute_uniform(2)
+            ])
+            .entry_point("set_light_sources")
+            .build(egpu);
+
+
+        let lights_buffer = egpu.create_buffer(
+            BufferUsages::COPY_DST | BufferUsages::STORAGE,
+            2_u64.pow(18)
+        );
+
+        let dynamic_lights_meta = egpu.create_buffer(
+            BufferUsages::COPY_DST | BufferUsages::UNIFORM,
+            size_of::<DynamicLightMeta>() as u64
+        );
+
+        let set_light_sources_bg = ComputeBindGroupBuilder::new(set_light_sources_pipeline)
+            .texture(0,diffuse_texture_b)
+            .buffer(1,lights_buffer)
+            .buffer(2,dynamic_lights_meta)
             .build(egpu);
 
         let smooth_pipeline = ComputePipelineBuilder::new(smooth_shader)
@@ -178,19 +223,26 @@ impl LightingEngine{
             tile_storage_texture,
             smooth_pipeline,
             diffuse_pipeline,
-            set_lit_tiles_pipeline,
+            set_sky_light_pipeline,
+            set_light_sources_pipeline,
             occlusion_pipeline,
             upscale_pipeline,
             smooth_bg_a_to_b,
             smooth_bg_b_to_a,
             diffuse_bg_a_to_b,
             diffuse_bg_b_to_a,
+            set_sky_light_bg,
+            set_light_sources_bg,
             occlusion_bg,
             upscale_bg,
             light_sampler,
             light_uniform,
             light_meta,
             sky_light,
+            dynamic_lights_meta,
+            lights_buffer,
+            lights: Vec::new(),
+            num_lights: 0,
         }
     }
     
@@ -200,11 +252,23 @@ impl LightingEngine{
             height: (VERTICAL_CHUNK_LOAD_DISTANCE*CHUNK_SIZE as i32) as u32 * 2+ CHUNK_SIZE as u32,
             depth_or_array_layers: 1,
         });
+
         self.light_meta.pos = [
             (player_pos[0]/CHUNK_SIZE as f32).floor()*CHUNK_SIZE as f32,
             (player_pos[1]/CHUNK_SIZE as f32).floor()*CHUNK_SIZE as f32
         ];
         egpu.write_buffer(self.light_uniform,self.light_meta);
+
+        egpu.write_buffer(self.dynamic_lights_meta,DynamicLightMeta{
+            pos: self.light_meta.pos,
+            light_count: self.lights.len() as u32,
+            pad: 0.0,
+        });
+
+        egpu.write_array_buffer(self.lights_buffer,self.lights.as_slice());
+        self.num_lights = self.lights.len() as u32;
+
+        self.lights.clear();
     }
 
     pub fn compute(&self, frame: &mut Frame){
@@ -218,16 +282,23 @@ impl LightingEngine{
         );
 
         frame.compute(
-            self.diffuse_bg_b_to_a,
-            self.set_lit_tiles_pipeline,
+            self.set_light_sources_bg,
+            self.set_light_sources_pipeline,
+            (self.num_lights/64 + 1, 1, 1,),
+        );
+        frame.compute(
+            self.set_sky_light_bg,
+            self.set_sky_light_pipeline,
             (pixels.0/16, pixels.1/16, pixels.2),
         );
+
+
         frame.compute(
             self.occlusion_bg,
             self.occlusion_pipeline,
             (pixels.0/16, pixels.1/16, pixels.2)
         );
-        for _ in 0..10{
+        for _ in 0..12{
             frame.compute(
                 self.diffuse_bg_a_to_b,
                 self.diffuse_pipeline,
@@ -239,9 +310,15 @@ impl LightingEngine{
                 (pixels.0/16, pixels.0/16, pixels.2)
             );
         }
+
         frame.compute(
-            self.diffuse_bg_b_to_a,
-            self.set_lit_tiles_pipeline,
+            self.set_light_sources_bg,
+            self.set_light_sources_pipeline,
+            (self.num_lights/64 + 1, 1, 1,),
+        );
+        frame.compute(
+            self.set_sky_light_bg,
+            self.set_sky_light_pipeline,
             (pixels.0/16, pixels.1/16, pixels.2)
         );
 
@@ -269,6 +346,45 @@ impl LightingEngine{
             );
         }
     }
+}
+
+pub struct Light{
+    pub colour: [f32;3]
+}
+impl Light{
+    pub fn new(colour: [f32;3]) -> Self{
+        Self{
+            colour,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct LightSource {
+    pos: [f32; 2],
+    _pad0: [f32; 2],
+    pub colour: [f32; 3],
+    _pad1: f32,
+}
+
+impl LightSource{
+    pub fn new(pos: [f32;2],colour: [f32;3]) -> Self{
+        Self{
+            pos,
+            _pad0: [0.;2],
+            colour,
+            _pad1: 0.0,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DynamicLightMeta {
+    pub pos: [f32; 2],
+    pub light_count: u32,
+    pad: f32,
 }
 
 #[repr(C)]

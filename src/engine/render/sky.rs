@@ -1,5 +1,5 @@
 use std::mem;
-use easy_gpu::assets::{uniform, Buffer, BufferLayout, BufferUsages, GpuInstance, GpuVertex, Material, MaterialBuilder, Mesh, RenderPipelineBuilder};
+use easy_gpu::assets::{Buffer, BufferLayout, BufferUsages, GpuInstance, GpuVertex, Material, MaterialBuilder, Mesh, render_uniform, RenderPipelineBuilder};
 use easy_gpu::assets_manager::Handle;
 use easy_gpu::frame::Frame;
 use easy_gpu::wgpu::{TextureFormat, VertexFormat, VertexStepMode};
@@ -28,7 +28,7 @@ impl Sky{
             .depth_writes_enabled(false)
             .depth_format(TextureFormat::Depth24Plus)
             .vertex_layout(SkyVertex::buffer_layout())
-            .material_layout(&[uniform(0)])
+            .material_layout(&[render_uniform(0)])
             .build(egpu);
 
         let sky_buffer = egpu.create_buffer_with_contents(
@@ -36,7 +36,7 @@ impl Sky{
             bytemuck::cast_slice(&[SkyUniform::new()])
         );
         let sky_material = MaterialBuilder::new(sky_pipeline)
-            .uniform(0,sky_buffer)
+            .buffer(0,sky_buffer)
             .build(egpu);
 
         let vertices = [
@@ -56,7 +56,7 @@ impl Sky{
             .depth_format(TextureFormat::Depth24Plus)
             .vertex_layout(SkyVertex::buffer_layout())
             .vertex_layout(Star::buffer_layout())
-            .material_layout(&[uniform(0)])
+            .material_layout(&[render_uniform(0)])
             .additive_alpha_blending()
             .build(egpu);
 
@@ -65,7 +65,7 @@ impl Sky{
             size_of::<StarUniform>() as u64
         );
         let star_material = MaterialBuilder::new(pipeline)
-            .uniform(0,star_uniform)
+            .buffer(0,star_uniform)
             .build(egpu);
 
         let stars = (0..1000).map(|i|{
@@ -78,13 +78,13 @@ impl Sky{
             .depth_writes_enabled(false)
             .depth_format(TextureFormat::Depth24Plus)
             .vertex_layout(SkyVertex::buffer_layout())
-            .material_layout(&[uniform(0)])
+            .material_layout(&[render_uniform(0)])
             .fs_entry_point("nebular_fs")
             .additive_alpha_blending()
             .build(egpu);
 
         let nebular_material = MaterialBuilder::new(nebular_pipeline)
-            .uniform(0,sky_buffer)
+            .buffer(0,sky_buffer)
             .build(egpu);
 
         let star_buffer = egpu.create_buffer_with_contents(
@@ -94,7 +94,7 @@ impl Sky{
 
         Self{
             light_colour: [1.0,1.0,1.0],
-            time: 0.7,
+            time: 0.71,
             sky_material,
             quad,
             sky_uniform: SkyUniform::new(),
@@ -245,18 +245,18 @@ impl Sky{
     }
 
     pub fn draw(&self,frame: &mut Frame){
-        frame.draw_mesh(
+        frame.draw(
             self.sky_material,
             self.quad
         );
 
-        frame.draw_mesh(
+        frame.draw(
             self.nebular_material,
             self.quad
         );
 
-        frame.draw_instances(
-            self.star_buffer,
+        frame.draw_manual_batch(
+            vec![self.star_buffer],
             self.star_material,
             self.quad,
             0..1000

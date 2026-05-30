@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-easy-gpu = "0.3.10"
+easy-gpu = "0.5.5"
 winit = "0.30.9"
 pollster = "0.4.0"
 bytemuck = "1.22.0"

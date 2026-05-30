@@ -542,9 +542,9 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
 name = "easy-gpu"
-version = "0.3.9"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26f82e0ce1f81fff16563c2acf28f2e8232056ea652ba87db56abaed8ca1201c"
+checksum = "8874758195776bb2d4d2fd9139edd6456192067fab21d323778159351ff7e133"
 dependencies = [
  "bytemuck",
  "image",
