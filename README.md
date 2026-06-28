@@ -1,4 +1,4 @@
-﻿# tile-based-terrain
+﻿# Tileworld Engine
 This has been a passion project of mine that started in Scratch and has lead me to Rust and WGPU: my wip terraria style game framework.
 
 Here a list of some of its features:
