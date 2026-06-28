@@ -3,7 +3,7 @@ This has been a passion project of mine that started in Scratch and has lead me 
 
 Here a list of some of its features:
 
-Infinite procedural tile based terrain. Entity based terrain decorations. Saved to disk. Marching squares. GPU-based, dynamic, coloured lighting and ambient occlusion. Particles. Collisions. Inventory and item system. Explosions and more!
+Infinite procedural tile based terrain. Entity based terrain decorations. Saved to disk. Marching squares. GPU-based, dynamic, coloured lighting and ambient occlusion. Procedural clouds in the sky. Particles. Collisions. Inventory and item system. Explosions and more!
 
 Below is a screenshot of a house i made:
 <img width="1907" height="978" alt="Screenshot 2026-06-24 155503" src="https://github.com/user-attachments/assets/e5cb9458-f4c8-405f-b07d-812da3b31986" />
